@@ -1,0 +1,889 @@
+- original version (MXnet)
+ - [EN]: All the contents are re-organized and summarized based on [D2L](https://d2l.ai/index.html)
+```
+@book{zhang2020dive,
+    title={Dive into Deep Learning},
+    author={Aston Zhang and Zachary C. Lipton and Mu Li and Alexander J. Smola},
+    note={\url{https://d2l.ai}},
+    year={2020}
+}
+```
+ - [CN]: 所有内容整理自[《动手学习深度学习》](https://zh.d2l.ai/)
+
+- PyTorch version
+ - [EN]: PyTorch Modification (originally in MXnet) : [D2L in PyTorch](https://github.com/dsgiitr/d2l-pytorch)
+```
+@book{zhang2020dive,
+    title={Dive into Deep Learning},
+    author={Aston Zhang and Zachary C. Lipton and Mu Li and Alexander J. Smola},
+    note={\url{https://d2l.ai}},
+    year={2020}
+}
+```
+ - [CN]: PyTorch版本 [Gitbook](http://tangshusen.me/Dive-into-DL-PyTorch/#/)（原书代码基于MXnet）
+```
+@book{zhang2019dive,
+    title={Dive into Deep Learning},
+    author={Aston Zhang and Zachary C. Lipton and Mu Li and Alexander J. Smola},
+    note={\url{http://www.d2l.ai}},
+    year={2020}
+}
+``` 
+- course, video lectures and online learning paltform
+ - [EN]: Course website [Berkeley STAT 157](https://courses.d2l.ai/berkeley-stat-157/index.html) and Youtube lectures [Playlist](https://www.youtube.com/playlist?list=PLZSO_6-bSqHQHBCoGaObUljoXAyyqhpFW)<br>
+ - [CN]: 课程视频以及算力支持，[伯禹学习平台](https://www.boyuai.com/elites/course/cZu18YmweLv10OeV), [和鲸社区](https://www.kesci.com/)
+d2l library Google Colab import 解决办法
+- 下载中文版d2lzh_pytorch版本的代码到colab临时working directory
+- 然后import d2lzh_pytorch as d2l_pt
+
+
+
+线性回归
+主要内容包括：
+
+线性回归的基本要素
+线性回归模型从零开始的实现
+线性回归模型使用pytorch的简洁实现
+线性回归的基本要素¶
+模型
+为了简单起见，这里我们假设价格只取决于房屋状况的两个因素，即面积（平方米）和房龄（年）。接下来我们希望探索价格与这两个因素的具体关系。线性回归假设输出与各个输入之间是线性关系:
+
+数据集
+我们通常收集一系列的真实数据，例如多栋房屋的真实售出价格和它们对应的面积和房龄。我们希望在这个数据上面寻找模型参数来使模型的预测价格与真实价格的误差最小。在机器学习术语里，该数据集被称为训练数据集（training data set）或训练集（training set），一栋房屋被称为一个样本（sample），其真实售出价格叫作标签（label），用来预测标签的两个因素叫作特征（feature）。特征用来表征样本的特点。
+
+损失函数
+在模型训练中，我们需要衡量价格预测值与真实值之间的误差。通常我们会选取一个非负数作为误差，且数值越小表示误差越小。一个常用的选择是平方函数。 它在评估索引为  的样本误差的表达式为
+
+优化函数 - 随机梯度下降
+当模型和损失函数形式较为简单时，上面的误差最小化问题的解可以直接用公式表达出来。这类解叫作解析解（analytical solution）。本节使用的线性回归和平方误差刚好属于这个范畴。然而，大多数深度学习模型并没有解析解，只能通过优化算法有限次迭代模型参数来尽可能降低损失函数的值。这类解叫作数值解（numerical solution）。
+
+在求数值解的优化算法中，小批量随机梯度下降（mini-batch stochastic gradient descent）在深度学习中被广泛使用。它的算法很简单：先选取一组模型参数的初始值，如随机选取；接下来对参数进行多次迭代，使每次迭代都可能降低损失函数的值。在每次迭代中，先随机均匀采样一个由固定数目训练数据样本所组成的小批量（mini-batch），然后求小批量中数据样本的平均损失有关模型参数的导数（梯度），最后用此结果与预先设定的一个正数的乘积作为模型参数在本次迭代的减小量。
+
+学习率: 代表在每次优化中，能够学习的步长的大小
+批量大小: 是小批量计算中的批量大小batch size
+
+总结一下，优化函数的有以下两个步骤：
+
+(i)初始化模型参数，一般来说使用随机初始化；
+(ii)我们在数据上迭代多次，通过在负梯度方向移动参数来更新每个参数。
+矢量计算
+在模型训练或预测时，我们常常会同时处理多个数据样本并用到矢量计算。在介绍线性回归的矢量计算表达式之前，让我们先考虑对两个向量相加的两种方法。
+
+向量相加的一种方法是，将这两个向量按元素逐一做标量加法。
+向量相加的另一种方法是，将这两个向量直接做矢量加法。
+import torch
+import time
+
+# init variable a, b as 1000 dimension vector
+n = 1000
+a = torch.ones(n)
+b = torch.ones(n)
+# define a timer class to record time
+class Timer(object):
+    """Record multiple running times."""
+    def __init__(self):
+        self.times = []
+        self.start()
+
+    def start(self):
+        # start the timer
+        self.start_time = time.time()
+
+    def stop(self):
+        # stop the timer and record time into a list
+        self.times.append(time.time() - self.start_time)
+        return self.times[-1]
+
+    def avg(self):
+        # calculate the average and return
+        return sum(self.times)/len(self.times)
+
+    def sum(self):
+        # return the sum of recorded time
+        return sum(self.times)
+现在我们可以来测试了。首先将两个向量使用for循环按元素逐一做标量加法。
+
+timer = Timer()
+c = torch.zeros(n)
+for i in range(n):
+    c[i] = a[i] + b[i]
+'%.5f sec' % timer.stop()
+另外是使用torch来将两个向量直接做矢量加法：
+
+timer.start()
+d = a + b
+'%.5f sec' % timer.stop()
+结果很明显,后者比前者运算速度更快。因此，我们应该尽可能采用矢量计算，以提升计算效率。
+
+线性回归模型从零开始的实现
+# import packages and modules
+%matplotlib inline
+import torch
+from IPython import display
+from matplotlib import pyplot as plt
+import numpy as np
+import random
+
+print(torch.__version__)
+生成数据集
+使用线性模型来生成数据集，生成一个1000个样本的数据集，下面是用来生成数据的线性关系：
+
+# set input feature number 
+num_inputs = 2
+# set example number
+num_examples = 1000
+
+# set true weight and bias in order to generate corresponded label
+true_w = [2, -3.4]
+true_b = 4.2
+
+features = torch.randn(num_examples, num_inputs,
+                      dtype=torch.float32)
+labels = true_w[0] * features[:, 0] + true_w[1] * features[:, 1] + true_b
+labels += torch.tensor(np.random.normal(0, 0.01, size=labels.size()),
+                       dtype=torch.float32)
+使用图像来展示生成的数据
+plt.scatter(features[:, 1].numpy(), labels.numpy(), 1);
+读取数据集
+def data_iter(batch_size, features, labels):
+    num_examples = len(features)
+    indices = list(range(num_examples))
+    random.shuffle(indices)  # random read 10 samples
+    for i in range(0, num_examples, batch_size):
+        j = torch.LongTensor(indices[i: min(i + batch_size, num_examples)]) # the last time may be not enough for a whole batch
+        yield  features.index_select(0, j), labels.index_select(0, j)
+batch_size = 10
+
+for X, y in data_iter(batch_size, features, labels):
+    print(X, '\n', y)
+    break
+初始化模型参数
+w = torch.tensor(np.random.normal(0, 0.01, (num_inputs, 1)), dtype=torch.float32)
+b = torch.zeros(1, dtype=torch.float32)
+
+w.requires_grad_(requires_grad=True)
+b.requires_grad_(requires_grad=True)
+定义模型
+定义用来训练参数的训练模型：
+
+def linreg(X, w, b):
+    return torch.mm(X, w) + b
+定义损失函数
+我们使用的是均方误差损失函数：
+def squared_loss(y_hat, y): 
+    return (y_hat - y.view(y_hat.size())) ** 2 / 2
+定义优化函数
+在这里优化函数使用的是小批量随机梯度下降：
+
+def sgd(params, lr, batch_size): 
+    for param in params:
+        param.data -= lr * param.grad / batch_size # ues .data to operate param without gradient track
+训练
+当数据集、模型、损失函数和优化函数定义完了之后就可来准备进行模型的训练了。
+
+# super parameters init
+lr = 0.03
+num_epochs = 5
+
+net = linreg
+loss = squared_loss
+
+# training
+for epoch in range(num_epochs):  # training repeats num_epochs times
+    # in each epoch, all the samples in dataset will be used once
+    
+    # X is the feature and y is the label of a batch sample
+    for X, y in data_iter(batch_size, features, labels):
+        l = loss(net(X, w, b), y).sum()  
+        # calculate the gradient of batch sample loss 
+        l.backward()  
+        # using small batch random gradient descent to iter model parameters
+        sgd([w, b], lr, batch_size)  
+        # reset parameter gradient
+        w.grad.data.zero_()
+        b.grad.data.zero_()
+    train_l = loss(net(features, w, b), labels)
+    print('epoch %d, loss %f' % (epoch + 1, train_l.mean().item()))
+w, true_w, b, true_b
+线性回归模型使用pytorch的简洁实现
+import torch
+from torch import nn
+import numpy as np
+torch.manual_seed(1)
+
+print(torch.__version__)
+torch.set_default_tensor_type('torch.FloatTensor')
+生成数据集
+在这里生成数据集跟从零开始的实现中是完全一样的。
+
+num_inputs = 2
+num_examples = 1000
+
+true_w = [2, -3.4]
+true_b = 4.2
+
+features = torch.tensor(np.random.normal(0, 1, (num_examples, num_inputs)), dtype=torch.float)
+labels = true_w[0] * features[:, 0] + true_w[1] * features[:, 1] + true_b
+labels += torch.tensor(np.random.normal(0, 0.01, size=labels.size()), dtype=torch.float)
+读取数据集
+import torch.utils.data as Data
+
+batch_size = 10
+
+# combine featues and labels of dataset
+dataset = Data.TensorDataset(features, labels)
+
+# put dataset into DataLoader
+data_iter = Data.DataLoader(
+    dataset=dataset,            # torch TensorDataset format
+    batch_size=batch_size,      # mini batch size
+    shuffle=True,               # whether shuffle the data or not
+    num_workers=2,              # read data in multithreading
+)
+for X, y in data_iter:
+    print(X, '\n', y)
+    break
+定义模型
+class LinearNet(nn.Module):
+    def __init__(self, n_feature):
+        super(LinearNet, self).__init__()      # call father function to init 
+        self.linear = nn.Linear(n_feature, 1)  # function prototype: `torch.nn.Linear(in_features, out_features, bias=True)`
+
+    def forward(self, x):
+        y = self.linear(x)
+        return y
+    
+net = LinearNet(num_inputs)
+print(net)
+# ways to init a multilayer network
+# method one
+net = nn.Sequential(
+    nn.Linear(num_inputs, 1)
+    # other layers can be added here
+    )
+
+# method two
+net = nn.Sequential()
+net.add_module('linear', nn.Linear(num_inputs, 1))
+# net.add_module ......
+
+# method three
+from collections import OrderedDict
+net = nn.Sequential(OrderedDict([
+          ('linear', nn.Linear(num_inputs, 1))
+          # ......
+        ]))
+
+print(net)
+print(net[0])
+初始化模型参数
+from torch.nn import init
+
+init.normal_(net[0].weight, mean=0.0, std=0.01)
+init.constant_(net[0].bias, val=0.0)  # or you can use `net[0].bias.data.fill_(0)` to modify it directly
+for param in net.parameters():
+    print(param)
+定义损失函数
+loss = nn.MSELoss()    # nn built-in squared loss function
+                       # function prototype: `torch.nn.MSELoss(size_average=None, reduce=None, reduction='mean')`
+定义优化函数
+import torch.optim as optim
+
+optimizer = optim.SGD(net.parameters(), lr=0.03)   # built-in random gradient descent function
+print(optimizer)  # function prototype: `torch.optim.SGD(params, lr=, momentum=0, dampening=0, weight_decay=0, nesterov=False)`
+训练
+num_epochs = 3
+for epoch in range(1, num_epochs + 1):
+    for X, y in data_iter:
+        output = net(X)
+        l = loss(output, y.view(-1, 1))
+        optimizer.zero_grad() # reset gradient, equal to net.zero_grad()
+        l.backward()
+        optimizer.step()
+    print('epoch %d, loss: %f' % (epoch, l.item()))
+# result comparision
+dense = net[0]
+print(true_w, dense.weight.data)
+print(true_b, dense.bias.data)
+两种实现方式的比较
+从零开始的实现（推荐用来学习）
+
+能够更好的理解模型和神经网络底层的原理
+
+使用pytorch的简洁实现
+
+能够更加快速地完成模型的设计与实现
+
+
+
+
+
+
+
+
+
+Lesson 2
+softmax和分类模型
+内容包含：
+
+softmax回归的基本概念
+如何获取Fashion-MNIST数据集和读取数据
+softmax回归模型的从零开始实现，实现一个对Fashion-MNIST训练集中的图像数据进行分类的模型
+使用pytorch重新实现softmax回归模型
+softmax的基本概念
+分类问题
+一个简单的图像分类问题，输入图像的高和宽均为2像素，色彩为灰度。
+图像中的4像素分别记为。
+假设真实标签为狗、猫或者鸡，这些标签对应的离散值为。
+我们通常使用离散的数值来表示类别，例如。
+
+权重矢量
+神经网络图
+下图用神经网络图描绘了上面的计算。softmax回归同线性回归一样，也是一个单层神经网络。由于每个输出的计算都要依赖于所有的输入，softmax回归的输出层也是一个全连接层。
+Image Name
+
+回
+归
+是
+一
+个
+单
+层
+神
+经
+网
+络
+既然分类问题需要得到离散的预测输出，一个简单的办法是将输出值当作预测类别是的置信度，并将值最大的输出所对应的类作为预测输出，即输出 。例如，如果分别为，由于最大，那么预测类别为2，其代表猫。
+
+输出问题
+直接使用输出层的输出有两个问题：
+一方面，由于输出层的输出值的范围不确定，我们难以直观上判断这些值的意义。例如，刚才举的例子中的输出值10表示“很置信”图像类别为猫，因为该输出值是其他两类的输出值的100倍。但如果，那么输出值10却又表示图像类别为猫的概率很低。
+另一方面，由于真实标签是离散值，这些离散值与不确定范围的输出值之间的误差难以衡量。
+softmax运算符（softmax operator）解决了以上两个问题。它通过下式将输出值变换成值为正且和为1的概率分布：
+
+其中
+
+容易看出且，因此是一个合法的概率分布。这时候，如果，不管和的值是多少，我们都知道图像类别为猫的概率是80%。此外，我们注意到
+
+因此softmax运算不改变预测类别输出。
+
+计算效率
+单样本矢量计算表达式
+为了提高计算效率，我们可以将单样本分类通过矢量计算来表达。在上面的图像分类问题中，假设softmax回归的权重和偏差参数分别为
+设高和宽分别为2个像素的图像样本的特征为
+
+输出层的输出为
+
+预测为狗、猫或鸡的概率分布为
+
+softmax回归对样本分类的矢量计算表达式为
+
+小批量矢量计算表达式
+为了进一步提升计算效率，我们通常对小批量数据做矢量计算。广义上讲，给定一个小批量样本，其批量大小为，输入个数（特征数）为，输出个数（类别数）为。设批量特征为。假设softmax回归的权重和偏差参数分别为和。softmax回归的矢量计算表达式为
+其中的加法运算使用了广播机制，且这两个矩阵的第行分别为样本的输出和概率分布。
+
+交叉熵损失函数
+对于样本，我们构造向量 ，使其第（样本类别的离散数值）个元素为1，其余为0。这样我们的训练目标可以设为使预测概率分布尽可能接近真实的标签概率分布。
+
+平方损失估计
+然而，想要预测分类结果正确，我们其实并不需要预测概率完全等于标签概率。例如，在图像分类的例子里，如果，那么我们只需要比其他两个预测值和大就行了。即使值为0.6，不管其他两个预测值为多少，类别预测均正确。而平方损失则过于严格，例如比的损失要小很多，虽然两者都有同样正确的分类预测结果。
+
+改善上述问题的一个方法是使用更适合衡量两个概率分布差异的测量函数。其中，交叉熵（cross entropy）是一个常用的衡量方法：
+
+其中带下标的是向量中非0即1的元素，需要注意将它与样本类别的离散数值，即不带下标的区分。在上式中，我们知道向量中只有第个元素为1，其余全为0，于是。也就是说，交叉熵只关心对正确类别的预测概率，因为只要其值足够大，就可以确保分类结果正确。当然，遇到一个样本有多个标签时，例如图像里含有不止一个物体时，我们并不能做这一步简化。但即便对于这种情况，交叉熵同样只关心对图像中出现的物体类别的预测概率。
+
+假设训练数据集的样本数为，交叉熵损失函数定义为
+其中代表模型参数。同样地，如果每个样本只有一个标签，那么交叉熵损失可以简写成。从另一个角度来看，我们知道最小化等价于最大化，即最小化交叉熵损失函数等价于最大化训练数据集所有标签类别的联合预测概率。
+
+模型训练和预测
+在训练好softmax回归模型后，给定任一样本特征，就可以预测每个输出类别的概率。通常，我们把预测概率最大的类别作为输出类别。如果它与真实类别（标签）一致，说明这次预测是正确的。在3.6节的实验中，我们将使用准确率（accuracy）来评价模型的表现。它等于正确预测数量与总预测数量之比。
+
+获取Fashion-MNIST训练集和读取数据
+在介绍softmax回归的实现前我们先引入一个多类图像分类数据集。它将在后面的章节中被多次使用，以方便我们观察比较算法之间在模型精度和计算效率上的区别。图像分类数据集中最常用的是手写数字识别数据集MNIST[1]。但大部分模型在MNIST上的分类精度都超过了95%。为了更直观地观察算法之间的差异，我们将使用一个图像内容更加复杂的数据集Fashion-MNIST[2]。
+
+我这里我们会使用torchvision包，它是服务于PyTorch深度学习框架的，主要用来构建计算机视觉模型。torchvision主要由以下几部分构成：
+
+torchvision.datasets: 一些加载数据的函数及常用的数据集接口；
+torchvision.models: 包含常用的模型结构（含预训练模型），例如AlexNet、VGG、ResNet等；
+torchvision.transforms: 常用的图片变换，例如裁剪、旋转等；
+torchvision.utils: 其他的一些有用的方法。
+# import needed package
+%matplotlib inline
+from IPython import display
+import matplotlib.pyplot as plt
+
+import torch
+import torchvision
+import torchvision.transforms as transforms
+import time
+
+import sys
+sys.path.append("/home/kesci/input")
+import d2lzh1981 as d2l
+
+print(torch.__version__)
+print(torchvision.__version__)
+1.3.0
+0.4.1a0+d94043a
+get dataset
+mnist_train = torchvision.datasets.FashionMNIST(root='/home/kesci/input/FashionMNIST2065', train=True, download=True, transform=transforms.ToTensor())
+mnist_test = torchvision.datasets.FashionMNIST(root='/home/kesci/input/FashionMNIST2065', train=False, download=True, transform=transforms.ToTensor())
+class torchvision.datasets.FashionMNIST(root, train=True, transform=None, target_transform=None, download=False)
+
+root（string）– 数据集的根目录，其中存放processed/training.pt和processed/test.pt文件。
+train（bool, 可选）– 如果设置为True，从training.pt创建数据集，否则从test.pt创建。
+download（bool, 可选）– 如果设置为True，从互联网下载数据并放到root文件夹下。如果root目录下已经存在数据，不会再次下载。
+transform（可被调用 , 可选）– 一种函数或变换，输入PIL图片，返回变换之后的数据。如：transforms.RandomCrop。
+target_transform（可被调用 , 可选）– 一种函数或变换，输入目标，进行变换。
+# show result 
+print(type(mnist_train))
+print(len(mnist_train), len(mnist_test))
+<class 'torchvision.datasets.mnist.FashionMNIST'>
+60000 10000
+# 我们可以通过下标来访问任意一个样本
+feature, label = mnist_train[0]
+print(feature.shape, label)  # Channel x Height x Width
+torch.Size([1, 28, 28]) 9
+如果不做变换输入的数据是图像，我们可以看一下图片的类型参数：
+
+mnist_PIL = torchvision.datasets.FashionMNIST(root='/home/kesci/input/FashionMNIST2065', train=True, download=True)
+PIL_feature, label = mnist_PIL[0]
+print(PIL_feature)
+<PIL.Image.Image image mode=L size=28x28 at 0x7F54A41612E8>
+# 本函数已保存在d2lzh包中方便以后使用
+def get_fashion_mnist_labels(labels):
+    text_labels = ['t-shirt', 'trouser', 'pullover', 'dress', 'coat',
+                   'sandal', 'shirt', 'sneaker', 'bag', 'ankle boot']
+    return [text_labels[int(i)] for i in labels]
+def show_fashion_mnist(images, labels):
+    d2l.use_svg_display()
+    # 这里的_表示我们忽略（不使用）的变量
+    _, figs = plt.subplots(1, len(images), figsize=(12, 12))
+    for f, img, lbl in zip(figs, images, labels):
+        f.imshow(img.view((28, 28)).numpy())
+        f.set_title(lbl)
+        f.axes.get_xaxis().set_visible(False)
+        f.axes.get_yaxis().set_visible(False)
+    plt.show()
+X, y = [], []
+for i in range(10):
+    X.append(mnist_train[i][0]) # 将第i个feature加到X中
+    y.append(mnist_train[i][1]) # 将第i个label加到y中
+show_fashion_mnist(X, get_fashion_mnist_labels(y))
+
+# 读取数据
+batch_size = 256
+num_workers = 4
+train_iter = torch.utils.data.DataLoader(mnist_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+test_iter = torch.utils.data.DataLoader(mnist_test, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+start = time.time()
+for X, y in train_iter:
+    continue
+print('%.2f sec' % (time.time() - start))
+4.95 sec
+softmax从零开始的实现
+import torch
+import torchvision
+import numpy as np
+import sys
+sys.path.append("/home/kesci/input")
+import d2lzh1981 as d2l
+
+print(torch.__version__)
+print(torchvision.__version__)
+1.3.0
+0.4.1a0+d94043a
+获取训练集数据和测试集数据
+batch_size = 256
+train_iter, test_iter = d2l.load_data_fashion_mnist(batch_size, root='/home/kesci/input/FashionMNIST2065')
+模型参数初始化
+num_inputs = 784
+print(28*28)
+num_outputs = 10
+
+W = torch.tensor(np.random.normal(0, 0.01, (num_inputs, num_outputs)), dtype=torch.float)
+b = torch.zeros(num_outputs, dtype=torch.float)
+784
+W.requires_grad_(requires_grad=True)
+b.requires_grad_(requires_grad=True)
+tensor([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.], requires_grad=True)
+对多维Tensor按维度操作
+X = torch.tensor([[1, 2, 3], [4, 5, 6]])
+print(X.sum(dim=0, keepdim=True))  # dim为0，按照相同的列求和，并在结果中保留列特征
+print(X.sum(dim=1, keepdim=True))  # dim为1，按照相同的行求和，并在结果中保留行特征
+print(X.sum(dim=0, keepdim=False)) # dim为0，按照相同的列求和，不在结果中保留列特征
+print(X.sum(dim=1, keepdim=False)) # dim为1，按照相同的行求和，不在结果中保留行特征
+tensor([[5, 7, 9]])
+tensor([[ 6],
+        [15]])
+tensor([5, 7, 9])
+tensor([ 6, 15])
+定义softmax操作
+def softmax(X):
+    X_exp = X.exp()
+    partition = X_exp.sum(dim=1, keepdim=True)
+    # print("X size is ", X_exp.size())
+    # print("partition size is ", partition, partition.size())
+    return X_exp / partition  # 这里应用了广播机制
+X = torch.rand((2, 5))
+X_prob = softmax(X)
+print(X_prob, '\n', X_prob.sum(dim=1))
+tensor([[0.2253, 0.1823, 0.1943, 0.2275, 0.1706],
+        [0.1588, 0.2409, 0.2310, 0.1670, 0.2024]]) 
+ tensor([1.0000, 1.0000])
+softmax回归模型
+def net(X):
+    return softmax(torch.mm(X.view((-1, num_inputs)), W) + b)
+定义损失函数
+y_hat = torch.tensor([[0.1, 0.3, 0.6], [0.3, 0.2, 0.5]])
+y = torch.LongTensor([0, 2])
+y_hat.gather(1, y.view(-1, 1))
+tensor([[0.1000],
+        [0.5000]])
+def cross_entropy(y_hat, y):
+    return - torch.log(y_hat.gather(1, y.view(-1, 1)))
+定义准确率
+我们模型训练完了进行模型预测的时候，会用到我们这里定义的准确率。
+
+def accuracy(y_hat, y):
+    return (y_hat.argmax(dim=1) == y).float().mean().item()
+print(accuracy(y_hat, y))
+0.5
+# 本函数已保存在d2lzh_pytorch包中方便以后使用。该函数将被逐步改进：它的完整实现将在“图像增广”一节中描述
+def evaluate_accuracy(data_iter, net):
+    acc_sum, n = 0.0, 0
+    for X, y in data_iter:
+        acc_sum += (net(X).argmax(dim=1) == y).float().sum().item()
+        n += y.shape[0]
+    return acc_sum / n
+print(evaluate_accuracy(test_iter, net))
+0.1445
+训练模型
+num_epochs, lr = 5, 0.1
+
+# 本函数已保存在d2lzh_pytorch包中方便以后使用
+def train_ch3(net, train_iter, test_iter, loss, num_epochs, batch_size,
+              params=None, lr=None, optimizer=None):
+    for epoch in range(num_epochs):
+        train_l_sum, train_acc_sum, n = 0.0, 0.0, 0
+        for X, y in train_iter:
+            y_hat = net(X)
+            l = loss(y_hat, y).sum()
+            
+            # 梯度清零
+            if optimizer is not None:
+                optimizer.zero_grad()
+            elif params is not None and params[0].grad is not None:
+                for param in params:
+                    param.grad.data.zero_()
+            
+            l.backward()
+            if optimizer is None:
+                d2l.sgd(params, lr, batch_size)
+            else:
+                optimizer.step() 
+            
+            
+            train_l_sum += l.item()
+            train_acc_sum += (y_hat.argmax(dim=1) == y).sum().item()
+            n += y.shape[0]
+        test_acc = evaluate_accuracy(test_iter, net)
+        print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f'
+              % (epoch + 1, train_l_sum / n, train_acc_sum / n, test_acc))
+
+train_ch3(net, train_iter, test_iter, cross_entropy, num_epochs, batch_size, [W, b], lr)
+epoch 1, loss 0.7851, train acc 0.750, test acc 0.791
+epoch 2, loss 0.5704, train acc 0.814, test acc 0.810
+epoch 3, loss 0.5258, train acc 0.825, test acc 0.819
+epoch 4, loss 0.5014, train acc 0.832, test acc 0.824
+epoch 5, loss 0.4865, train acc 0.836, test acc 0.827
+模型预测
+现在我们的模型训练完了，可以进行一下预测，我们的这个模型训练的到底准确不准确。 现在就可以演示如何对图像进行分类了。给定一系列图像（第三行图像输出），我们比较一下它们的真实标签（第一行文本输出）和模型预测结果（第二行文本输出）。
+
+X, y = iter(test_iter).next()
+
+true_labels = d2l.get_fashion_mnist_labels(y.numpy())
+pred_labels = d2l.get_fashion_mnist_labels(net(X).argmax(dim=1).numpy())
+titles = [true + '\n' + pred for true, pred in zip(true_labels, pred_labels)]
+
+d2l.show_fashion_mnist(X[0:9], titles[0:9])
+
+softmax的简洁实现
+# 加载各种包或者模块
+import torch
+from torch import nn
+from torch.nn import init
+import numpy as np
+import sys
+sys.path.append("/home/kesci/input")
+import d2lzh1981 as d2l
+
+print(torch.__version__)
+1.3.0
+初始化参数和获取数据
+batch_size = 256
+train_iter, test_iter = d2l.load_data_fashion_mnist(batch_size, root='/home/kesci/input/FashionMNIST2065')
+定义网络模型
+num_inputs = 784
+num_outputs = 10
+
+class LinearNet(nn.Module):
+    def __init__(self, num_inputs, num_outputs):
+        super(LinearNet, self).__init__()
+        self.linear = nn.Linear(num_inputs, num_outputs)
+    def forward(self, x): # x 的形状: (batch, 1, 28, 28)
+        y = self.linear(x.view(x.shape[0], -1))
+        return y
+    
+# net = LinearNet(num_inputs, num_outputs)
+
+class FlattenLayer(nn.Module):
+    def __init__(self):
+        super(FlattenLayer, self).__init__()
+    def forward(self, x): # x 的形状: (batch, *, *, ...)
+        return x.view(x.shape[0], -1)
+
+from collections import OrderedDict
+net = nn.Sequential(
+        # FlattenLayer(),
+        # LinearNet(num_inputs, num_outputs) 
+        OrderedDict([
+           ('flatten', FlattenLayer()),
+           ('linear', nn.Linear(num_inputs, num_outputs))]) # 或者写成我们自己定义的 LinearNet(num_inputs, num_outputs) 也可以
+        )
+初始化模型参数
+init.normal_(net.linear.weight, mean=0, std=0.01)
+init.constant_(net.linear.bias, val=0)
+Parameter containing:
+tensor([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.], requires_grad=True)
+定义损失函数
+loss = nn.CrossEntropyLoss() # 下面是他的函数原型
+# class torch.nn.CrossEntropyLoss(weight=None, size_average=None, ignore_index=-100, reduce=None, reduction='mean')
+定义优化函数
+optimizer = torch.optim.SGD(net.parameters(), lr=0.1) # 下面是函数原型
+# class torch.optim.SGD(params, lr=, momentum=0, dampening=0, weight_decay=0, nesterov=False)
+训练
+num_epochs = 5
+d2l.train_ch3(net, train_iter, test_iter, loss, num_epochs, batch_size, None, None, optimizer)
+epoch 1, loss 0.0031, train acc 0.751, test acc 0.795
+epoch 2, loss 0.0022, train acc 0.813, test acc 0.809
+epoch 3, loss 0.0021, train acc 0.825, test acc 0.806
+epoch 4, loss 0.0020, train acc 0.833, test acc 0.813
+epoch 5, loss 0.0019, train acc 0.837, test acc 0.822
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Lesson 3
+多层感知机
+多层感知机的基本知识
+使用多层感知机图像分类的从零开始的实现
+使用pytorch的简洁实现
+多层感知机的基本知识¶
+深度学习主要关注多层模型。在这里，我们将以多层感知机（multilayer perceptron，MLP）为例，介绍多层神经网络的概念。
+
+隐藏层
+下图展示了一个多层感知机的神经网络图，它含有一个隐藏层，该层中有5个隐藏单元。
+
+Image Name
+
+表达公式
+具体来说，给定一个小批量样本，其批量大小为，输入个数为。假设多层感知机只有一个隐藏层，其中隐藏单元个数为。记隐藏层的输出（也称为隐藏层变量或隐藏变量）为，有。因为隐藏层和输出层均是全连接层，可以设隐藏层的权重参数和偏差参数分别为和 ，输出层的权重和偏差参数分别为和。
+
+我们先来看一种含单隐藏层的多层感知机的设计。其输出的计算为
+
+也就是将隐藏层的输出直接作为输出层的输入。如果将以上两个式子联立起来，可以得到
+
+从联立后的式子可以看出，虽然神经网络引入了隐藏层，却依然等价于一个单层神经网络：其中输出层权重参数为，偏差参数为。不难发现，即便再添加更多的隐藏层，以上设计依然只能与仅含输出层的单层神经网络等价。
+
+激活函数
+上述问题的根源在于全连接层只是对数据做仿射变换（affine transformation），而多个仿射变换的叠加仍然是一个仿射变换。解决问题的一个方法是引入非线性变换，例如对隐藏变量使用按元素运算的非线性函数进行变换，然后再作为下一个全连接层的输入。这个非线性函数被称为激活函数（activation function）。
+
+下面我们介绍几个常用的激活函数：
+
+ReLU函数
+ReLU（rectified linear unit）函数提供了一个很简单的非线性变换。给定元素，该函数定义为
+
+可以看出，ReLU函数只保留正数元素，并将负数元素清零。为了直观地观察这一非线性变换，我们先定义一个绘图函数xyplot。
+
+%matplotlib inline
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+sys.path.append("/home/kesci/input")
+import d2lzh1981 as d2l
+print(torch.__version__)
+1.3.0
+def xyplot(x_vals, y_vals, name):
+    # d2l.set_figsize(figsize=(5, 2.5))
+    plt.plot(x_vals.detach().numpy(), y_vals.detach().numpy())
+    plt.xlabel('x')
+    plt.ylabel(name + '(x)')
+x = torch.arange(-8.0, 8.0, 0.1, requires_grad=True)
+y = x.relu()
+xyplot(x, y, 'relu')
+
+y.sum().backward()
+xyplot(x, x.grad, 'grad of relu')
+
+Sigmoid函数
+sigmoid函数可以将元素的值变换到0和1之间：
+
+y = x.sigmoid()
+xyplot(x, y, 'sigmoid')
+
+依据链式法则，sigmoid函数的导数
+
+下面绘制了sigmoid函数的导数。当输入为0时，sigmoid函数的导数达到最大值0.25；当输入越偏离0时，sigmoid函数的导数越接近0。
+
+x.grad.zero_()
+y.sum().backward()
+xyplot(x, x.grad, 'grad of sigmoid')
+
+tanh函数
+tanh（双曲正切）函数可以将元素的值变换到-1和1之间：
+
+我们接着绘制tanh函数。当输入接近0时，tanh函数接近线性变换。虽然该函数的形状和sigmoid函数的形状很像，但tanh函数在坐标系的原点上对称。
+
+y = x.tanh()
+xyplot(x, y, 'tanh')
+
+依据链式法则，tanh函数的导数
+
+下面绘制了tanh函数的导数。当输入为0时，tanh函数的导数达到最大值1；当输入越偏离0时，tanh函数的导数越接近0。
+
+x.grad.zero_()
+y.sum().backward()
+xyplot(x, x.grad, 'grad of tanh')
+
+关于激活函数的选择
+ReLu函数是一个通用的激活函数，目前在大多数情况下使用。但是，ReLU函数只能在隐藏层中使用。
+
+用于分类器时，sigmoid函数及其组合通常效果更好。由于梯度消失问题，有时要避免使用sigmoid和tanh函数。
+
+在神经网络层数较多的时候，最好使用ReLu函数，ReLu函数比较简单计算量少，而sigmoid和tanh函数计算量大很多。
+
+在选择激活函数的时候可以先选用ReLu函数如果效果不理想可以尝试其他激活函数。
+
+多层感知机
+多层感知机就是含有至少一个隐藏层的由全连接层组成的神经网络，且每个隐藏层的输出通过激活函数进行变换。多层感知机的层数和各隐藏层中隐藏单元个数都是超参数。以单隐藏层为例并沿用本节之前定义的符号，多层感知机按以下方式计算输出：
+
+其中表示激活函数。
+
+多层感知机从零开始的实现
+import torch
+import numpy as np
+import sys
+sys.path.append("/home/kesci/input")
+import d2lzh1981 as d2l
+print(torch.__version__)
+1.3.0
+获取训练集
+batch_size = 256
+train_iter, test_iter = d2l.load_data_fashion_mnist(batch_size,root='/home/kesci/input/FashionMNIST2065')
+定义模型参数
+num_inputs, num_outputs, num_hiddens = 784, 10, 256
+
+W1 = torch.tensor(np.random.normal(0, 0.01, (num_inputs, num_hiddens)), dtype=torch.float)
+b1 = torch.zeros(num_hiddens, dtype=torch.float)
+W2 = torch.tensor(np.random.normal(0, 0.01, (num_hiddens, num_outputs)), dtype=torch.float)
+b2 = torch.zeros(num_outputs, dtype=torch.float)
+
+params = [W1, b1, W2, b2]
+for param in params:
+    param.requires_grad_(requires_grad=True)
+定义激活函数
+def relu(X):
+    return torch.max(input=X, other=torch.tensor(0.0))
+定义网络
+def net(X):
+    X = X.view((-1, num_inputs))
+    H = relu(torch.matmul(X, W1) + b1)
+    return torch.matmul(H, W2) + b2
+定义损失函数
+loss = torch.nn.CrossEntropyLoss()
+训练
+num_epochs, lr = 5, 100.0
+# def train_ch3(net, train_iter, test_iter, loss, num_epochs, batch_size,
+#               params=None, lr=None, optimizer=None):
+#     for epoch in range(num_epochs):
+#         train_l_sum, train_acc_sum, n = 0.0, 0.0, 0
+#         for X, y in train_iter:
+#             y_hat = net(X)
+#             l = loss(y_hat, y).sum()
+#             
+#             # 梯度清零
+#             if optimizer is not None:
+#                 optimizer.zero_grad()
+#             elif params is not None and params[0].grad is not None:
+#                 for param in params:
+#                     param.grad.data.zero_()
+#            
+#             l.backward()
+#             if optimizer is None:
+#                 d2l.sgd(params, lr, batch_size)
+#             else:
+#                 optimizer.step()  # “softmax回归的简洁实现”一节将用到
+#             
+#             
+#             train_l_sum += l.item()
+#             train_acc_sum += (y_hat.argmax(dim=1) == y).sum().item()
+#             n += y.shape[0]
+#         test_acc = evaluate_accuracy(test_iter, net)
+#         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f'
+#               % (epoch + 1, train_l_sum / n, train_acc_sum / n, test_acc))
+
+d2l.train_ch3(net, train_iter, test_iter, loss, num_epochs, batch_size, params, lr)
+epoch 1, loss 0.0030, train acc 0.712, test acc 0.806
+epoch 2, loss 0.0019, train acc 0.821, test acc 0.806
+epoch 3, loss 0.0017, train acc 0.847, test acc 0.825
+epoch 4, loss 0.0015, train acc 0.856, test acc 0.834
+epoch 5, loss 0.0015, train acc 0.863, test acc 0.847
+多层感知机pytorch实现
+import torch
+from torch import nn
+from torch.nn import init
+import numpy as np
+import sys
+sys.path.append("/home/kesci/input")
+import d2lzh1981 as d2l
+
+print(torch.__version__)
+1.3.0
+初始化模型和各个参数
+num_inputs, num_outputs, num_hiddens = 784, 10, 256
+    
+net = nn.Sequential(
+        d2l.FlattenLayer(),
+        nn.Linear(num_inputs, num_hiddens),
+        nn.ReLU(),
+        nn.Linear(num_hiddens, num_outputs), 
+        )
+    
+for params in net.parameters():
+    init.normal_(params, mean=0, std=0.01)
+训练
+batch_size = 256
+train_iter, test_iter = d2l.load_data_fashion_mnist(batch_size,root='/home/kesci/input/FashionMNIST2065')
+loss = torch.nn.CrossEntropyLoss()
+
+optimizer = torch.optim.SGD(net.parameters(), lr=0.5)
+
+num_epochs = 5
+d2l.train_ch3(net, train_iter, test_iter, loss, num_epochs, batch_size, None, None, optimizer)
+epoch 1, loss 0.0031, train acc 0.701, test acc 0.774
+epoch 2, loss 0.0019, train acc 0.821, test acc 0.806
+epoch 3, loss 0.0017, train acc 0.841, test acc 0.805
+epoch 4, loss 0.0015, train acc 0.855, test acc 0.834
+epoch 5, loss 0.0014, train acc 0.866, test acc 0.840
